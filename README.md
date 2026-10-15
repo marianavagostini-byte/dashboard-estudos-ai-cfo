@@ -17,19 +17,25 @@ O projeto é uma ferramenta de estudo pessoal, não um sistema financeiro: não 
 
 ## Demonstração visual
 
-Adicione as capturas de tela do aplicativo nos locais abaixo quando estiverem disponíveis:
-
 ### Visão geral
 
-`[Inserir Print da Visão Geral]`
+![Visão geral do dashboard de estudos](docs/assets/overview.png)
 
 ### Roadmap interativo
 
-`[Inserir Print do Roadmap Interativo]`
+![Roadmap interativo com módulos, etapa selecionada e materiais bilingues](docs/assets/roadmap.png)
 
 ### Detalhes da etapa
 
-`[Inserir Print dos Detalhes da Etapa]`
+![Detalhes da etapa com conceitos, prática, recursos e progresso](docs/assets/stage-details.png)
+
+### Marcos do projeto AI CFO
+
+![Marcos de implementação do projeto AI Personal CFO](docs/assets/project-milestones.png)
+
+### Configurações e backups
+
+![Configurações locais de exportação e restauração de backup](docs/assets/settings.png)
 
 ## Funcionalidades
 
@@ -55,6 +61,13 @@ O frontend é uma aplicação React de página única. O catálogo da trilha é 
 │       └── tests.yml
 ├── .gitignore
 ├── LICENSE
+├── docs/
+│   └── assets/
+│       ├── overview.png
+│       ├── roadmap.png
+│       ├── stage-details.png
+│       ├── project-milestones.png
+│       └── settings.png
 ├── public/
 │   ├── favicon.svg
 │   └── icons.svg
