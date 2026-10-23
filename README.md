@@ -1,5 +1,7 @@
 ﻿# Dashboard de Estudos - AI Personal CFO
 
+**Acesse:** <https://marianavagostini-byte.github.io/dashboard-estudos-ai-cfo/>
+
 ![Build](https://img.shields.io/github/actions/workflow/status/marianavagostini-byte/dashboard-estudos-ai-cfo/build.yml?branch=main&label=build)
 ![Testes](https://img.shields.io/github/actions/workflow/status/marianavagostini-byte/dashboard-estudos-ai-cfo/tests.yml?branch=main&label=testes)
 ![Licença MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-blue.svg)

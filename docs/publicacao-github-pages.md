@@ -2,6 +2,10 @@
 
 O dashboard é publicado como site estático no GitHub Pages, sem backend e sem custo.
 
+**Status:** publicado em 23/10/2026 e verificado por navegador real (Chrome headless) na URL de produção.
+
+O histórico público deste repositório foi reconstruído em um único commit para remover um resumo pessoal antigo de estudos que existia em commits anteriores. O histórico original foi preservado apenas em um bundle local fora do repositório e não é publicado.
+
 ## URL
 
 - Produção: <https://marianavagostini-byte.github.io/dashboard-estudos-ai-cfo/>
