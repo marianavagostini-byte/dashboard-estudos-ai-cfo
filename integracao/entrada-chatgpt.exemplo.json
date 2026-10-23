@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "session_id": "123e4567-e89b-42d3-a456-426614174000",
+  "date": "2026-01-15T14:30:00-03:00",
+  "source": "ChatGPT — exemplo fictício",
+  "duration_minutes": null,
+  "modules": [
+    {
+      "id": "javascript",
+      "topics_studied": [
+        {
+          "topic": "Exemplo fictício: declaração de variáveis",
+          "explained": true,
+          "practiced": false
+        }
+      ]
+    }
+  ],
+  "exercises": [
+    {
+      "title": "Exemplo fictício: calcular soma",
+      "prompt": "Somar dois números.",
+      "attempted": false,
+      "resolved": false,
+      "solution_or_correction": null,
+      "result": null
+    }
+  ],
+  "artifacts": [],
+  "tests": [],
+  "roadmap_updates": [],
+  "next_steps": ["Exemplo fictício: praticar uma função simples."],
+  "notes": ["Dados de demonstração; não representam uma sessão realizada."],
+  "git": {
+    "branch": null,
+    "commit_hash": null,
+    "push_status": "not_applicable",
+    "push_details": null
+  }
+}

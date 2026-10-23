@@ -1,0 +1,78 @@
+:root {
+  --bg: #0b1018;
+  --sidebar: #0e1520;
+  --panel: #151f2e;
+  --panel-raised: #192638;
+  --border: rgba(148, 163, 184, 0.16);
+  --sidebar-border: rgba(148, 163, 184, 0.12);
+  --text: #f1f5fb;
+  --text-soft: #aab8cb;
+  --text-muted: #8798b1;
+  --accent: #4f7cff;
+  --accent-soft: rgba(79, 124, 255, 0.14);
+  --success: #2ad17a;
+  --input-bg: #101a28;
+  --input-border: rgba(148, 163, 184, 0.22);
+
+  font-family: Inter, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: var(--text);
+  background: var(--bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+button,
+input,
+a {
+  font: inherit;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+::selection {
+  background: rgba(79, 124, 255, 0.35);
+  color: var(--text);
+}
+
+* {
+  scrollbar-color: #35445b var(--bg);
+  scrollbar-width: thin;
+}

@@ -1,0 +1,21 @@
+{
+  "schema_version": 2,
+  "session_id": "223e4567-e89b-42d3-a456-426614174000",
+  "date": "2026-01-15T14:30:00-03:00",
+  "source": "ChatGPT — exemplo fictício",
+  "topic_updates": [
+    {
+      "subject_id": "fundamentos.python",
+      "topic_id": "fundamentos.python.sintaxe",
+      "expected_status": "Disponível",
+      "proposed_status": "Em andamento",
+      "justification": "Exemplo fictício: estudo iniciado, sem declarar conclusão.",
+      "exercise": {
+        "description": "Ler dois números e calcular a soma.",
+        "attempted": false,
+        "result": null
+      }
+    }
+  ],
+  "notes": ["Dados exclusivamente fictícios; não representam progresso real."]
+}

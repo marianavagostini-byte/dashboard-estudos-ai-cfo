@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dashboard-estudos.local/schemas/topic-session-v2.schema.json",
+  "title": "Dashboard-Estudos topic session v2",
+  "description": "Proposta de estudo do ChatGPT. A aplicação valida IDs/datas e pede aprovação humana antes de gravar progresso.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "session_id", "date", "source", "topic_updates", "notes"],
+  "properties": {
+    "schema_version": { "const": 2 },
+    "session_id": { "type": "string", "format": "uuid" },
+    "date": { "type": "string", "format": "date-time", "description": "Data/hora da sessão com fuso explícito; a aplicação verifica os componentes reais do calendário." },
+    "source": { "type": "string", "minLength": 1 },
+    "topic_updates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["subject_id", "topic_id", "expected_status", "proposed_status", "justification", "exercise"],
+        "properties": {
+          "subject_id": { "type": "string", "minLength": 1 },
+          "topic_id": { "type": "string", "minLength": 1 },
+          "expected_status": { "$ref": "#/$defs/status" },
+          "proposed_status": { "$ref": "#/$defs/status" },
+          "justification": { "type": "string", "minLength": 1 },
+          "exercise": {
+            "oneOf": [
+              { "type": "null" },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["description", "attempted", "result"],
+                "properties": {
+                  "description": { "type": "string", "minLength": 1 },
+                  "attempted": { "type": "boolean" },
+                  "result": { "type": ["string", "null"] }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "notes": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+  },
+  "$defs": {
+    "status": { "enum": ["Bloqueado", "Disponível", "Em andamento", "Concluído"] }
+  }
+}

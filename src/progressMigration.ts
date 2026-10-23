@@ -1,0 +1,69 @@
+import type { StudyRecord } from './studyData'
+
+export interface LegacyProgressMapping {
+  old_id: string
+  candidate_target: string | null
+  justification: string
+  confidence: 'alta' | 'média' | 'baixa'
+  decision: 'preservar_sem_converter' | 'preservar_revisao_manual'
+}
+
+export const legacyProgressMappings: readonly LegacyProgressMapping[] = [
+  { old_id: 'roadmap-stage:fundamentos-compreender', candidate_target: null, justification: 'Etapa ampla de compreensão de Fundamentos, sem tópico individual equivalente.', confidence: 'baixa', decision: 'preservar_sem_converter' },
+  { old_id: 'roadmap-stage:fundamentos-guiada', candidate_target: null, justification: 'Etapa ampla com exercícios de Python/lógica; não identifica um tópico único.', confidence: 'baixa', decision: 'preservar_sem_converter' },
+  { old_id: 'roadmap-stage:fundamentos-independente', candidate_target: null, justification: 'Etapa ampla de aplicação e POO, incompatível com um único tópico novo.', confidence: 'baixa', decision: 'preservar_sem_converter' },
+  { old_id: 'roadmap-stage:fundamentos-autonomia', candidate_target: null, justification: 'Avaliação geral de Fundamentos, não prova conclusão separada de Python ou POO.', confidence: 'baixa', decision: 'preservar_sem_converter' },
+  { old_id: 'roadmap-stage:javascript-compreender', candidate_target: 'web.javascript.basico', justification: 'A nota menciona valores, variáveis, arrays, objetos e callbacks; abrange vários subtópicos e não autoriza transferir status.', confidence: 'média', decision: 'preservar_revisao_manual' },
+  { old_id: 'roadmap-stage:javascript-guiada', candidate_target: 'web.javascript.estruturas', justification: 'A nota menciona map, filter, reduce e callbacks; candidato parcial, sem equivalência suficiente para migração.', confidence: 'média', decision: 'preservar_revisao_manual' },
+  { old_id: 'roadmap-stage:git-github-compreender', candidate_target: 'fundamentos.git-github', justification: 'Etapa trata do assunto Git/GitHub de forma ampla; o novo ID candidato é uma matéria, não um tópico equivalente.', confidence: 'baixa', decision: 'preservar_sem_converter' },
+  { old_id: 'roadmap-stage:git-github-guiada', candidate_target: 'fundamentos.git-github', justification: 'Mistura comandos, branches e conflitos; não mapeia para um tópico único.', confidence: 'baixa', decision: 'preservar_sem_converter' },
+  { old_id: 'roadmap-stage:git-github-independente', candidate_target: 'fundamentos.git-github', justification: 'Mistura GitHub, colaboração e revisão; não mapeia para um tópico único.', confidence: 'baixa', decision: 'preservar_sem_converter' },
+  { old_id: 'roadmap-stage:git-github-autonomia', candidate_target: 'fundamentos.git-github', justification: 'Validação geral da matéria; não prova cada tópico novo.', confidence: 'baixa', decision: 'preservar_sem_converter' },
+  { old_id: 'roadmap-stage:http-apis-compreender', candidate_target: 'web.fundamentos.http', justification: 'A nota inclui DNS, cliente/servidor, métodos, status e JSON; conteúdo transversal sem correspondência única.', confidence: 'baixa', decision: 'preservar_sem_converter' },
+  { old_id: 'roadmap-stage:http-apis-guiada', candidate_target: 'web.fundamentos.apis', justification: 'Consumo de APIs REST é próximo, mas não cobre isoladamente um tópico específico.', confidence: 'média', decision: 'preservar_revisao_manual' },
+  { old_id: 'roadmap-stage:sql-compreender', candidate_target: 'fundamentos.sql.consultas', justification: 'A nota cobre SELECT, agregações, agrupamento e subqueries; abrange vários tópicos SQL.', confidence: 'média', decision: 'preservar_revisao_manual' },
+  { old_id: 'roadmap-stage:sql-guiada', candidate_target: 'fundamentos.sql.relacoes', justification: 'A nota inclui joins, filtros e modelagem; não corresponde a um único tópico.', confidence: 'média', decision: 'preservar_revisao_manual' },
+  { old_id: 'challenge:dsa-big-o', candidate_target: 'dsa.big-o', justification: 'Nome e nota coincidem com o tópico recuperado; status/datas continuam sendo histórico e exigem escolha manual.', confidence: 'alta', decision: 'preservar_revisao_manual' },
+  { old_id: 'challenge:dsa-array', candidate_target: 'dsa.array', justification: 'Nome e nota coincidem com o tópico recuperado; sem conversão automática de progresso.', confidence: 'alta', decision: 'preservar_revisao_manual' },
+  { old_id: 'challenge:dsa-string', candidate_target: 'dsa.string', justification: 'Nome e nota coincidem com o tópico recuperado; sem conversão automática de progresso.', confidence: 'alta', decision: 'preservar_revisao_manual' },
+  { old_id: 'challenge:dsa-hashmap', candidate_target: 'dsa.hashmap', justification: 'Nome e nota coincidem com o tópico recuperado; sem conversão automática de progresso.', confidence: 'alta', decision: 'preservar_revisao_manual' },
+  { old_id: 'challenge:dsa-two-pointers', candidate_target: 'dsa.two-pointers', justification: 'Nome e nota coincidem com o tópico recuperado; sem conversão automática de progresso.', confidence: 'alta', decision: 'preservar_revisao_manual' },
+  { old_id: 'challenge:dsa-sliding-window', candidate_target: 'dsa.sliding-window', justification: 'Nome e nota coincidem com o tópico recuperado; sem conversão automática de progresso.', confidence: 'alta', decision: 'preservar_revisao_manual' },
+  { old_id: 'challenge:dsa-summary', candidate_target: 'dsa.topicos', justification: 'Registro agregado 6/15 sem identidade por tópico; manter como relato histórico, não como progresso do novo catálogo.', confidence: 'baixa', decision: 'preservar_sem_converter' },
+]
+
+export interface MigrationSimulationItem {
+  recordId: string
+  oldId: string
+  candidateTarget: string | null
+  confidence: LegacyProgressMapping['confidence'] | 'nenhuma'
+  decision: LegacyProgressMapping['decision'] | 'preservar_sem_correspondencia'
+  status: string | null
+  completedAt: string | null
+  reason: string
+}
+
+export function simulateProgressMigration(records: readonly StudyRecord[]) {
+  const mappingById = new Map(legacyProgressMappings.map((entry) => [entry.old_id, entry]))
+  const items: MigrationSimulationItem[] = records.map((record) => {
+    const oldId = record.id
+    const mapping = mappingById.get(oldId)
+      ?? (record.data.stageId ? mappingById.get(`roadmap-stage:${record.data.stageId}`) : undefined)
+    return {
+      recordId: record.id,
+      oldId,
+      candidateTarget: mapping?.candidate_target ?? null,
+      confidence: mapping?.confidence ?? 'nenhuma',
+      decision: mapping?.decision ?? 'preservar_sem_correspondencia',
+      status: record.data.status ?? null,
+      completedAt: record.data.completedAt ?? null,
+      reason: mapping?.justification ?? 'ID ausente do manifesto: preservar integralmente como registro legado.',
+    }
+  })
+  return {
+    migrationEnabled: false as const,
+    writesPerformed: 0 as const,
+    items,
+    preservedRecordIds: items.map(({ recordId }) => recordId),
+  }
+}
