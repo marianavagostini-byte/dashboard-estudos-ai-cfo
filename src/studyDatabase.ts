@@ -2,13 +2,16 @@ import {
   initialTopics,
   findBackupConflicts,
   getCatalogTopicRecord,
+  markRoadmapStageReviewed,
   setCatalogTopicStatus,
   setRoadmapStageStatus,
   validateBackup,
   validateStudyRecords,
   type AppSettings,
   type BackupFile,
+  type CatalogTopicStatus,
   type RecordType,
+  type RoadmapStatus,
   type RoadmapStage,
   type StudyRecord,
 } from './studyData'
@@ -25,7 +28,7 @@ const settingsStore = 'settings'
 
 let databasePromise: Promise<IDBDatabase> | undefined
 
-function openDatabase(): Promise<IDBDatabase> {
+export function openDatabase(): Promise<IDBDatabase> {
   if (databasePromise) return databasePromise
   databasePromise = new Promise((resolve, reject) => {
     const request = indexedDB.open(databaseName, databaseVersion)
@@ -60,6 +63,14 @@ function openDatabase(): Promise<IDBDatabase> {
   return databasePromise
 }
 
+/**
+ * Reseta a conexão cacheada com o armazenamento. Útil para testes que
+ * substituem `globalThis.indexedDB` por uma implementação fictícia entre si.
+ */
+export function dbResetDatabase(): void {
+  databasePromise = undefined
+}
+
 function completeTransaction(transaction: IDBTransaction): Promise<void> {
   return new Promise((resolve, reject) => {
     transaction.oncomplete = () => resolve()
@@ -91,6 +102,108 @@ export async function saveRecords(records: StudyRecord[]): Promise<void> {
   const transaction = database.transaction(recordsStore, 'readwrite')
   const store = transaction.objectStore(recordsStore)
   validRecords.forEach((record) => store.put(record))
+  await completeTransaction(transaction)
+}
+
+/* C3: gravação ao vivo — lê o registro corrente do banco dentro da mesma
+   transação de gravação, em vez de confiar em snapshot React desatualizado. */
+
+export async function saveCatalogTopicStatus(
+  topic: { id: string; title: string; phaseId: string; subjectId: string },
+  status: CatalogTopicStatus,
+  date?: string,
+  timestamp?: string,
+): Promise<void> {
+  const database = await openDatabase()
+  const transaction = database.transaction(recordsStore, 'readwrite')
+  const transactionComplete = completeTransaction(transaction)
+  transactionComplete.catch(() => undefined)
+
+  const store = transaction.objectStore(recordsStore)
+  const getRequest = store.get(`roadmap-topic:${topic.id}`)
+  const outcome: { error?: Error } = {}
+
+  getRequest.onsuccess = () => {
+    try {
+      const existing = getRequest.result as StudyRecord | undefined
+      const updated = setCatalogTopicStatus(topic, existing, status, date, timestamp)
+      const putRequest = store.put(updated)
+
+      putRequest.onerror = () => {
+        outcome.error =
+          putRequest.error ?? new Error('Falha ao gravar o progresso do tópico.')
+      }
+    } catch (error) {
+      outcome.error =
+        error instanceof Error
+          ? error
+          : new Error('Falha ao gravar o progresso do tópico.')
+      transaction.abort()
+    }
+  }
+
+  getRequest.onerror = () => {
+    outcome.error =
+      getRequest.error ?? new Error('Falha ao ler o registro do tópico.')
+    transaction.abort()
+  }
+
+  try {
+    await transactionComplete
+  } catch (error) {
+    throw outcome.error ?? error
+  }
+}
+
+export async function saveRoadmapStageStatus(
+  stage: RoadmapStage,
+  status: RoadmapStatus,
+  date?: string,
+): Promise<void> {
+  const database = await openDatabase()
+  const transaction = database.transaction(recordsStore, 'readwrite')
+  const store = transaction.objectStore(recordsStore)
+  const getRequest = store.get(`roadmap-stage:${stage.id}`)
+  await new Promise<void>((resolve, reject) => {
+    getRequest.onsuccess = () => {
+      const existing = getRequest.result as StudyRecord | undefined
+      const updated = setRoadmapStageStatus(stage, existing, status, date)
+      const putRequest = store.put(updated)
+      putRequest.onsuccess = () => resolve()
+      putRequest.onerror = () =>
+        reject(putRequest.error ?? new Error('Falha ao gravar o progresso da etapa.'))
+    }
+    getRequest.onerror = () =>
+      reject(getRequest.error ?? new Error('Falha ao ler o registro da etapa.'))
+  })
+  await completeTransaction(transaction)
+}
+
+/* C3 aplicado ao reviewStage: gravação ao vivo — lê o registro corrente do banco
+   dentro da mesma transação de gravação, aplica a revisão sobre o registro real
+   e só então persiste. Assim revisões rápidas não perdem atualizações de outras
+   abas nem gravam snapshots React desatualizados. */
+export async function saveReviewedStage(stageId: string): Promise<void> {
+  const database = await openDatabase()
+  const transaction = database.transaction(recordsStore, 'readwrite')
+  const store = transaction.objectStore(recordsStore)
+  const getRequest = store.get(`roadmap-stage:${stageId}`)
+  await new Promise<void>((resolve, reject) => {
+    getRequest.onsuccess = () => {
+      const existing = getRequest.result as StudyRecord | undefined
+      if (!existing || existing.type !== 'roadmapStage' || !existing.data.stageId) {
+        reject(new Error(`Não foi encontrado o registro da etapa "${stageId}" no armazenamento local.`))
+        return
+      }
+      const updated = markRoadmapStageReviewed(existing)
+      const putRequest = store.put(updated)
+      putRequest.onsuccess = () => resolve()
+      putRequest.onerror = () =>
+        reject(putRequest.error ?? new Error('Falha ao gravar a revisão da etapa.'))
+    }
+    getRequest.onerror = () =>
+      reject(getRequest.error ?? new Error('Falha ao ler o registro da etapa.'))
+  })
   await completeTransaction(transaction)
 }
 
@@ -170,6 +283,7 @@ export async function exportData(): Promise<BackupFile> {
     }),
   ])
   const [[records, storedSettings]] = await Promise.all([requests, completion])
+  validateStudyRecords(records) // não exporte silenciosamente registros inválidos ou corrompidos (C4)
   return {
     app: 'Dashboard-Estudos',
     version: 1,
@@ -205,10 +319,21 @@ export async function importData(backup: BackupFile, mode: 'replace' | 'merge'):
     const request = store.getAll()
     request.onsuccess = () => {
       const existingRecords = request.result as StudyRecord[]
+      const existingById = new Map(existingRecords.map((record) => [record.id, record]))
       const conflicts = findBackupConflicts(validatedBackup.records, existingRecords)
       for (const record of validatedBackup.records) {
-        if (conflicts.has(record.id)) continue
-        store.add(record)
+        if (conflicts.has(record.id)) {
+          // C5: não ignore silenciosamente um entrante mais recente. Substitua somente
+          // quando estiver estritamente mais atual; empates mantêm o registro local.
+          const existing = existingById.get(record.id)
+          const maisRecente = existing
+            ? (record.updatedAt ?? '') > (existing.updatedAt ?? '')
+            : false
+          if (!maisRecente) continue
+          store.put(record) // sobrescreve o registro local mais antigo
+        } else {
+          store.add(record)
+        }
         imported += 1
       }
     }

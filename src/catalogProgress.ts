@@ -6,6 +6,7 @@ import {
   type StudyTopic,
   type TopicStatus,
 } from './studyCatalog'
+export { findStudyTopic } from './studyCatalog'
 
 export interface CatalogTopicEntry {
   phaseId: string
@@ -277,13 +278,19 @@ export function getCatalogTopicStatus(
   topicId: string,
   records: readonly StudyRecord[],
   lookup: (id: string) => StudyTopic | undefined = (id) => listCatalogTopics().find(({ topic }) => topic.id === id)?.topic,
+  visited: Set<string> = new Set(),
 ): TopicStatus {
+  if (visited.has(topicId)) return 'Bloqueado' // ciclo de pré-requisito: interrompe recursão infinita (C9)
+  const path = new Set(visited)
+  path.add(topicId)
   const saved = getCatalogTopicRecord(records, topicId)?.data.status
-  if (saved === 'Bloqueado' || saved === 'Disponível' || saved === 'Em andamento' || saved === 'Concluído') return saved
+  // 'Bloqueado' e 'Disponível' são estados derivados: nunca devem ser gravados como verdadeiros.
+  // Somente 'Em andamento' e 'Concluído' são status definidos explicitamente pelo usuário (C2).
+  if (saved === 'Em andamento' || saved === 'Concluído') return saved
   const topic = lookup(topicId)
   if (!topic) return 'Bloqueado'
   return (topic.prerequisites ?? []).every((requiredId) =>
-    getCatalogTopicStatus(requiredId, records, lookup) === 'Concluído',
+    getCatalogTopicStatus(requiredId, records, lookup, path) === 'Concluído',
   ) ? 'Disponível' : 'Bloqueado'
 }
 

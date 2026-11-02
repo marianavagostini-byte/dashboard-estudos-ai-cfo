@@ -13,6 +13,17 @@
   --success: #2ad17a;
   --input-bg: #101a28;
   --input-border: rgba(148, 163, 184, 0.22);
+  --surface: #101a28;
+  /* Estados de aprendizagem — usados em barras, nós e seletores. */
+  --state-done: #2ad17a;
+  --state-done-soft: rgba(42, 209, 122, 0.14);
+  --state-progress: #e0aa49;
+  --state-progress-soft: rgba(224, 170, 73, 0.14);
+  --state-partial: #5aa9e6;
+  --state-partial-soft: rgba(90, 169, 230, 0.14);
+  --state-idle: #8798b1;
+  --state-idle-soft: rgba(148, 163, 184, 0.12);
+  --track: rgba(148, 163, 184, 0.3);
 
   font-family: Inter, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   line-height: 1.5;

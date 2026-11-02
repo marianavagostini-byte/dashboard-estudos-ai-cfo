@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { StudyRecord } from './studyData'
-import { getCatalogStatusHistory, getCatalogTopicRecord, getCompletionHistory, setCatalogTopicStatus } from './studyData'
+import { getCatalogStatusHistory, getCatalogTopicRecord, getCompletionHistory } from './studyData'
 import { studyCatalog, topicStatuses, type StudyTopic, type TopicStatus } from './studyCatalog'
 import {
   calculateCatalogProgress,
@@ -14,7 +14,7 @@ import {
   listOfficialTopicGroups,
   type CatalogTrack,
 } from './catalogProgress'
-import { saveRecord } from './studyDatabase'
+import { saveCatalogTopicStatus } from './studyDatabase'
 
 function statusClass(status: string) {
   return status.toLocaleLowerCase('pt-BR').replaceAll(' ', '-')
@@ -35,6 +35,12 @@ function notStartedStatus(topic: StudyTopic, records: StudyRecord[]): TopicStatu
   return (topic.prerequisites ?? []).every((id) => getCatalogTopicStatus(id, records) === 'Concluído')
     ? 'Disponível'
     : 'Bloqueado'
+}
+
+function getStatusOptions(topic: StudyTopic, records: StudyRecord[]): TopicStatus[] {
+  const prerequisitesMet = notStartedStatus(topic, records) === 'Disponível'
+  if (!prerequisitesMet) return ['Bloqueado'] // C1: pré-requisitos pendentes impedem iniciar/concluir
+  return ['Disponível', 'Em andamento', 'Concluído']
 }
 
 export function StudyCatalogWorkspace({
@@ -91,12 +97,12 @@ export function StudyCatalogWorkspace({
     if (!entry) return
     setSavingTopicId(topicId)
     try {
-      await saveRecord(setCatalogTopicStatus({
+      await saveCatalogTopicStatus({
         id: entry.topic.id,
         title: entry.topic.title,
         phaseId: entry.phaseId,
         subjectId: entry.subjectId,
-      }, getCatalogTopicRecord(records, topicId), status))
+      }, status)
       await refresh()
       notify(`Progresso salvo: ${entry.topic.title} — ${status}.`)
     } catch (error) {
@@ -117,15 +123,20 @@ export function StudyCatalogWorkspace({
           <span style={{ width: `${progress.percent}%` }} />
         </div>
         <div className="catalog-progress-meta">
+          <ul className="catalog-compact-totals" aria-label="Totais do catálogo">
+            <li title="Tópicos da trilha principal que entram no percentual"><strong>{totals.principal}</strong><span>Principais</span></li>
+            <li title="Tópicos suplementares visíveis fora do percentual principal"><strong>{totals.suplementar}</strong><span>Suplementares</span></li>
+            <li title="Trilha paralela DSA + LeetCode"><strong>{totals.paralela}</strong><span>DSA</span></li>
+            <li title="Total de tópicos cadastrados"><strong>{totals.catalogo}</strong><span>Catálogo</span></li>
+          </ul>
           <span>{parallelProgress.completed}/{parallelProgress.total} em DSA + LeetCode (trilha paralela)</span>
           {nextTopic && <button className="topic-link" type="button" onClick={() => onOpenTopic(nextTopic.topic.id)}>Recomendado: {nextTopic.topic.title} →</button>}
         </div>
-        <dl className="catalog-totals" aria-label="Composição do catálogo">
-          <div><dt>Trilha principal</dt><dd>{totals.principal} tópicos · entram no progresso geral</dd></div>
-          <div><dt>Suplementares</dt><dd>{totals.suplementar} tópicos · visíveis, fora do percentual</dd></div>
-          <div><dt>Trilha paralela</dt><dd>{totals.paralela} tópicos · DSA + LeetCode, independente</dd></div>
-          <div><dt>Catálogo completo</dt><dd>{totals.catalogo} tópicos cadastrados</dd></div>
-        </dl>
+        <ul className="status-legend catalog-status-legend" aria-label="Legenda de status">
+          <li><span className="legend-swatch state-idle" aria-hidden="true" />Bloqueado/Disponível</li>
+          <li><span className="legend-swatch state-progress" aria-hidden="true" />Em andamento</li>
+          <li><span className="legend-swatch state-done" aria-hidden="true" />Concluído</li>
+        </ul>
       </section>
 
       <div className="catalog-tools">
@@ -189,15 +200,31 @@ export function StudyCatalogWorkspace({
                           {topics.map(({ topic }) => {
                             const status = getCatalogTopicStatus(topic.id, records)
                             const hasPrerequisites = !!topic.prerequisites?.length
+                            const options = getStatusOptions(topic, records)
                             return (
                               <li key={topic.id}>
-                                <button className={`catalog-topic${topic.id === selectedTopicId ? ' selected' : ''}`} type="button" onClick={() => onOpenTopic(topic.id)} aria-current={topic.id === selectedTopicId ? 'page' : undefined}>
-                                  <span className={`catalog-status-dot status-${statusClass(status)}`} aria-hidden="true" />
-                                  <span>{topic.title}</span>
-                                  {topic.priority && <small className={`priority priority-${statusClass(topic.priority)}`}>{topic.priority}</small>}
-                                  <small>{status}</small>
-                                  {hasPrerequisites && <span className="prerequisite-marker" title="Possui pré-requisitos" aria-label="Possui pré-requisitos">↳</span>}
-                                </button>
+                                <div className={`catalog-topic-row${topic.id === selectedTopicId ? ' selected' : ''}`}>
+                                  <button className="catalog-topic" type="button" onClick={() => onOpenTopic(topic.id)} aria-current={topic.id === selectedTopicId ? 'page' : undefined} title={topic.title}>
+                                    <span className={`catalog-status-dot status-${statusClass(status)}`} aria-hidden="true" />
+                                    <span className="catalog-topic-title">{topic.title}</span>
+                                    {topic.priority && <small className={`priority priority-${statusClass(topic.priority)}`}>{topic.priority}</small>}
+                                    {hasPrerequisites && <span className="prerequisite-marker" title="Possui pré-requisitos" aria-label="Possui pré-requisitos">↳</span>}
+                                  </button>
+                                  <label className="topic-status-compact" title={`Status: ${status}. Seleção salva imediatamente.`}>
+                                    <span className="sr-only">Status de {topic.title}</span>
+                                    <select
+                                      value={status}
+                                      disabled={savingTopicId === topic.id || (status === 'Bloqueado' && options.length === 1 && options[0] === 'Bloqueado')}
+                                      onChange={(event) => {
+                                        const nextStatus = event.target.value as TopicStatus
+                                        void updateStatus(topic.id, nextStatus)
+                                      }}
+                                    >
+                                      {options.map((item) => <option key={item} value={item}>{item === 'Bloqueado' ? 'Não iniciado' : item === 'Disponível' ? 'Não iniciado' : item}</option>)}
+                                    </select>
+                                    {savingTopicId === topic.id && <span className="topic-status-saving" aria-live="polite">Salvando…</span>}
+                                  </label>
+                                </div>
                                 {topic.subtopics.length > 0 && <ul className="catalog-subtopic-list">{topic.subtopics.map((item) => <li key={item.id}>{item.title}</li>)}</ul>}
                               </li>
                             )
@@ -264,20 +291,7 @@ export function StudyCatalogWorkspace({
         )}
       </div>
 
-      <section className="dashboard-panel area-progress-panel" aria-labelledby="area-progress-title">
-        <div className="section-heading"><div><span className="eyebrow">Roadmap · ordem oficial</span><h3 id="area-progress-title">Progresso das 20 matérias</h3></div><strong>{areas.filter(({ percent }) => percent === 100).length}/{areas.length} concluídas</strong></div>
-        <p className="muted-note">O progresso por matéria usa apenas os {areas.reduce((sum, area) => sum + area.total, 0)} tópicos das 20 matérias. {totals.suplementar} tópicos suplementares e {totals.paralela} de DSA + LeetCode ficam fora deste total; com eles, o catálogo completo soma {totals.catalogo}. Registros legados também não são somados aqui.</p>
-        <div className="area-progress-grid">
-          {areas.map((area, index) => (
-            <div className="area-progress-card" key={area.id}>
-              <span>{index + 1}. {area.title}</span>
-              <small>{area.completed}/{area.total} · {area.inProgress} em andamento</small>
-              <span className="area-progress-track"><span style={{ width: `${area.percent}%` }} /></span>
-              <small>{area.percent}%</small>
-            </div>
-          ))}
-        </div>
-      </section>
+      {/* Painel duplicado removido: as áreas já aparecem na linha do tempo da Visão Geral e nos grupos do catálogo. */}
     </div>
   )
 }

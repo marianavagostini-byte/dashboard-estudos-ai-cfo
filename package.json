@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "test": "node --test",
+    "test": "node --test tests/studyDatabase.test.mjs tests/studyData.test.mjs tests/safeCommit.test.mjs tests/backupComparison.test.mjs",
     "session:validate": "node scripts/validate-study-session.mjs",
     "preview": "vite preview"
   },

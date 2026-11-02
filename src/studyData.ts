@@ -292,7 +292,7 @@ export function setCatalogTopicStatus(
     type: 'roadmapStage',
     title: topic.title,
     data,
-    createdAt: existing?.createdAt ?? timestamp,
+    createdAt: existing && existing.createdAt !== undefined ? existing.createdAt : timestamp,
     updatedAt: timestamp,
   }
 }

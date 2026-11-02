@@ -83,6 +83,13 @@ const sectionDescriptions: Record<SectionId, string> = {
   settings: 'Exporte ou restaure seus dados locais.',
 }
 
+function areaState(area: { completed: number; inProgress: number; total: number }) {
+  if (area.total > 0 && area.completed >= area.total) return 'done'
+  if (area.inProgress > 0) return 'progress'
+  if (area.completed > 0) return 'partial'
+  return 'idle'
+}
+
 function Overview({
   records,
   onContinue,
@@ -91,10 +98,10 @@ function Overview({
   onContinue: (topicId: string) => void
 }) {
   const mainProgress = calculateCatalogProgress(records, { curriculumOnly: true })
-  const parallelProgress = calculateParallelProgress(records)
+  void calculateParallelProgress(records)
   const areas = calculateCurriculumProgress(records)
   const mainEntries = listCurriculumTopics()
-  const totals = getCatalogTotals()
+  void getCatalogTotals()
   const nextTopic = getNextRecommendedTopic(records, { curriculumOnly: true })
   const nextTopicInProgress = !!nextTopic && records.some(({ type, data }) =>
     type === 'roadmapStage' && data.topicId === nextTopic.topic.id && data.status === 'Em andamento')
@@ -103,60 +110,99 @@ function Overview({
   const sessionCount = records.filter(({ type }) => type === 'session').length
   const dsaEntries = listCatalogTopics({ parallelOnly: true })
   const proposedDsaCount = dsaEntries.filter(({ topic }) => topic.origin === 'proposta').length
+  const inProgressCount = areas.reduce((sum, area) => sum + area.inProgress, 0)
+  const notStartedCount = Math.max(mainProgress.total - mainProgress.completed - inProgressCount, 0)
+  const completedAreas = areas.filter(({ completed, total }) => total > 0 && completed >= total).length
+  const currentAreaId = nextTopic
+    ? areas.find(({ subjectIds }) => subjectIds.includes(nextTopic.subjectId))?.id
+    : undefined
   return (
-    <div className="overview-page compact-overview">
-      <section className="dashboard-panel compact-progress" aria-labelledby="catalog-overview-title">
-        <div className="section-heading"><div><span className="eyebrow">Trilha principal · 20 matérias</span><h3 id="catalog-overview-title">{mainProgress.percent}% concluído</h3></div><strong>{mainProgress.completed} de {mainProgress.total} tópicos</strong></div>
-        <div className="progress-track main-progress-track" role="progressbar" aria-label="Progresso da trilha principal" aria-valuemin={0} aria-valuemax={100} aria-valuenow={mainProgress.percent}><span style={{ width: `${mainProgress.percent}%` }} /></div>
-        <div className="compact-stats">
-          <span>{trackedCount} tópico(s) com registro</span>
-          <span>Principal: {totals.principal}</span>
-          <span>Suplementares: {totals.suplementar}</span>
-          <span>DSA: {parallelProgress.completed}/{parallelProgress.total}</span>
-          <span>Catálogo: {totals.catalogo}</span>
-          <span>{records.length} registro(s) nesta origem</span>
+    <div className="overview-page">
+      <section className="dashboard-panel hero-progress" aria-labelledby="catalog-overview-title">
+        <div className="hero-progress-copy">
+          <span className="eyebrow">Trilha principal · 20 matérias</span>
+          <p className="hero-percent" id="catalog-overview-title">{mainProgress.percent}<span>%</span></p>
+          <p className="hero-caption">{mainProgress.completed} de {mainProgress.total} tópicos concluídos</p>
         </div>
-        <p className="muted-note">O percentual principal conta só os {mainProgress.total} tópicos das 20 matérias, com status “Concluído” ({totals.principal} da trilha principal + {totals.suplementar} suplementares + {totals.paralela} de DSA = {totals.catalogo} no catálogo completo). DSA + LeetCode aparece separado. Tópicos de base (Python), prática complementar e especializações futuras continuam no catálogo, mas fora deste total. Registros legados não são convertidos automaticamente.</p>
-        {nextTopic
-          ? <button className="primary-button" type="button" onClick={() => onContinue(nextTopic.topic.id)}>{nextTopicInProgress ? 'Continuar tópico' : 'Abrir próximo tópico'}: {nextTopic.topic.title} →</button>
-          : <p className="empty-state">Todos os tópicos da trilha principal estão concluídos neste catálogo. Você ainda pode revisar DSA ou os materiais.</p>}
-        {records.length === 0 && (
-          <div className="empty-explanation" role="status">
-            <strong>Nenhum registro foi encontrado nesta origem do navegador.</strong>
-            <span>Por isso o catálogo mostra 0% e {mainProgress.total} tópicos pendentes. O catálogo é maior que o histórico antigo: ele inclui todas as matérias planejadas, não apenas as já estudadas. Isso não confirma perda de dados — registros de outro navegador, perfil ou endereço não são acessíveis aqui. Use Configurações para exportar esta origem ou restaurar um backup validado.</span>
-          </div>
-        )}
-        {records.length > 0 && trackedCount === 0 && (
-          <div className="empty-explanation" role="status">
-            <strong>Há {records.length} registro(s) nesta origem, mas nenhum corresponde a um tópico das 20 matérias.</strong>
-            <span>{legacyStageCount > 0 ? `${legacyStageCount} registro(s) antigo(s) de etapa foram preservados e não são somados ao progresso. ` : ''}Registros de tópicos de base ou complementares também permanecem salvos, mas fora deste total. A reconciliação legada continua somente leitura; nada foi apagado ou migrado.</span>
-          </div>
-        )}
-      </section>
-      <section className="dashboard-panel compact-phase-list" aria-labelledby="phase-progress-title">
-        <div className="section-heading"><div><span className="eyebrow">Roadmap · ordem oficial</span><h3 id="phase-progress-title">Progresso por matéria</h3></div><strong>{sessionCount} sessão(ões) importada(s)</strong></div>
-        {areas.map((area, index) => {
-          const firstEntry = mainEntries.find(({ subjectId }) => area.subjectIds.includes(subjectId))
-          return <button className="compact-phase-row" key={area.id} type="button" disabled={!firstEntry} onClick={() => firstEntry && onContinue(firstEntry.topic.id)}>
-            <span>{index + 1}. {area.title}</span><small>{area.completed}/{area.total} · {area.percent}%</small>
-          </button>
-        })}
-      </section>
-      <section className="dashboard-panel compact-phase-list" aria-labelledby="area-overview-title">
-        <div className="section-heading"><div><span className="eyebrow">20 matérias</span><h3 id="area-overview-title">Cobertura do roadmap</h3></div><strong>{areas.filter(({ completed }) => completed > 0).length}/{areas.length} iniciadas</strong></div>
-        <div className="area-progress-grid">
-          {areas.map((area) => (
-            <div className="area-progress-card" key={area.id}>
-              <span>{area.title}</span>
-              <small>{area.completed}/{area.total} · {area.inProgress} em andamento</small>
-              <span className="area-progress-track"><span style={{ width: `${area.percent}%` }} /></span>
-              <small>{area.percent}%</small>
-            </div>
-          ))}
+        <div className="hero-progress-body">
+          <div className="progress-track main-progress-track" role="progressbar" aria-label="Progresso da trilha principal" aria-valuemin={0} aria-valuemax={100} aria-valuenow={mainProgress.percent}><span style={{ width: `${mainProgress.percent}%` }} /></div>
+          <ul className="hero-stats" aria-label="Resumo do progresso">
+            <li className="hero-stat hero-stat--done"><strong>{mainProgress.completed}</strong><span>Concluídos</span></li>
+            <li className="hero-stat hero-stat--progress"><strong>{inProgressCount}</strong><span>Em andamento</span></li>
+            <li className="hero-stat hero-stat--idle"><strong>{notStartedCount}</strong><span>Não iniciados</span></li>
+          </ul>
+          {nextTopic
+            ? (
+              <div className="next-topic-card">
+                <div className="next-topic-copy">
+                  <span className="eyebrow">Próximo tópico</span>
+                  <strong>{nextTopic.topic.title}</strong>
+                  <small>{nextTopic.subjectTitle} · {nextTopic.phaseTitle}</small>
+                </div>
+                <button className="primary-button" type="button" onClick={() => onContinue(nextTopic.topic.id)}>
+                  {nextTopicInProgress ? 'Continuar' : 'Abrir'} →
+                </button>
+              </div>
+            )
+            : <p className="empty-state">Todos os tópicos da trilha principal estão concluídos neste catálogo. Você ainda pode revisar DSA ou os materiais.</p>}
         </div>
       </section>
-      <section className="dashboard-panel compact-phase-list diagnostics-panel" aria-labelledby="diagnostics-title">
-        <div className="section-heading"><div><span className="eyebrow">Transparência dos dados</span><h3 id="diagnostics-title">Diagnóstico desta origem</h3></div></div>
+
+      <section className="dashboard-panel roadmap-timeline-panel" aria-labelledby="phase-progress-title">
+        <div className="section-heading">
+          <div><span className="eyebrow">Roadmap · ordem oficial</span><h3 id="phase-progress-title">JavaScript → AI Personal CFO</h3></div>
+          <strong>{completedAreas}/{areas.length} matérias concluídas</strong>
+        </div>
+        <div className="timeline-scroll">
+          <ol className="roadmap-timeline" aria-label="Linha do tempo das 20 matérias na ordem oficial">
+            {areas.map((area, index) => {
+              const firstEntry = mainEntries.find(({ subjectId }) => area.subjectIds.includes(subjectId))
+              const state = areaState(area)
+              return (
+                <li className={`timeline-item state-${state}${area.id === currentAreaId ? ' is-current' : ''}`} key={area.id}>
+                  <button
+                    type="button"
+                    disabled={!firstEntry}
+                    onClick={() => firstEntry && onContinue(firstEntry.topic.id)}
+                    title={`${area.title}: ${area.percent}% concluído (${area.completed}/${area.total}) · ${area.inProgress} em andamento. ${area.description}`}
+                    aria-label={`${index + 1}. ${area.title}: ${area.percent}% concluído, ${area.completed} de ${area.total} tópicos`}
+                  >
+                    <span className="timeline-marker" aria-hidden="true">{state === 'done' ? '✓' : index + 1}</span>
+                    <span className="timeline-title">{area.title}</span>
+                    <span className="timeline-meta">{area.completed}/{area.total} · {area.percent}%</span>
+                    <span className="timeline-track" aria-hidden="true"><span style={{ width: `${area.percent}%` }} /></span>
+                  </button>
+                </li>
+              )
+            })}
+          </ol>
+        </div>
+        <ul className="status-legend" aria-label="Legenda da linha do tempo">
+          <li><span className="legend-swatch state-done" aria-hidden="true" />Concluído</li>
+          <li><span className="legend-swatch state-progress" aria-hidden="true" />Em andamento</li>
+          <li><span className="legend-swatch state-partial" aria-hidden="true" />Parcial</li>
+          <li><span className="legend-swatch state-idle" aria-hidden="true" />Não iniciado</li>
+        </ul>
+      </section>
+
+      {records.length === 0 && (
+        <div className="empty-explanation" role="status">
+          <strong>Nenhum registro foi encontrado nesta origem do navegador.</strong>
+          <span>O catálogo mostra {mainProgress.total} tópicos porque inclui todas as matérias planejadas, não apenas as já estudadas. Isso não confirma perda de dados: registros de outro navegador, perfil ou endereço não são acessíveis aqui. Use Configurações para exportar esta origem ou restaurar um backup validado.</span>
+        </div>
+      )}
+      {records.length > 0 && trackedCount === 0 && (
+        <div className="empty-explanation" role="status">
+          <strong>Há {records.length} registro(s) nesta origem, mas nenhum corresponde às 20 matérias.</strong>
+          <span>{legacyStageCount > 0 ? `${legacyStageCount} registro(s) antigo(s) de etapa foram preservados e não entram no progresso. ` : ''}Tópicos de base e complementares continuam salvos, mas fora deste total. Nada foi apagado ou migrado automaticamente.</span>
+        </div>
+      )}
+
+      <details className="dashboard-panel data-details">
+        <summary>
+          <span><span className="eyebrow">Transparência dos dados</span><strong>Diagnóstico desta origem</strong></span>
+          <span>{records.length} registro(s)</span>
+        </summary>
         <ul className="diagnostics-list">
           <li><strong>Registros salvos nesta origem:</strong> {records.length}</li>
           <li><strong>Tópicos do catálogo com registro:</strong> {trackedCount}</li>
@@ -167,9 +213,9 @@ function Overview({
         <details className="reference-history">
           <summary>Referência histórica informada — não migrada</summary>
           <p>Python 1/1 · Programação Orientada a Objetos 18/18 · Git e GitHub 9/9 · SQL 34/34 · Web Fundamentals 8/8 · DSA + LeetCode 6/15. JavaScript está em andamento.</p>
-          <p>Esses valores foram informados como referência, mas não foram convertidos automaticamente em registros nem entram no percentual. A migração legada continua somente leitura até existir mapeamento explícito, prévia, backup e aprovação. Registros de outras origens ou perfis do navegador não são acessíveis aqui.</p>
+          <p>Esses valores foram informados como referência, mas não foram convertidos automaticamente em registros nem entram no percentual. A migração legada continua somente leitura até existir mapeamento explícito, prévia, backup e aprovação.</p>
         </details>
-      </section>
+      </details>
     </div>
   )
 }
@@ -201,6 +247,11 @@ function App() {
         if (mounted) {
           setRecords(nextRecords)
           setStorageError('')
+          try {
+            await navigator.storage?.persist?.()
+          } catch {
+            /* melhor esforço: solicitar persistência do armazenamento local (R1) */
+          }
         }
       } catch (error) {
         if (mounted) setStorageError(error instanceof Error ? error.message : 'Falha ao iniciar o armazenamento local.')
@@ -256,11 +307,9 @@ function App() {
         {notice && <div className="toast" role="status">{notice}</div>}
         {loading
           ? <p className="loading-state">Carregando seus dados locais…</p>
-          : storageError
-            ? <p className="empty-state">Os dados não foram apresentados como salvos. Corrija o acesso ao armazenamento e recarregue a página.</p>
-            : activeSection === 'overview'
-              ? <Overview records={records} onContinue={(id) => openStage(id)} />
-              : <StudyWorkspace
+          : activeSection === 'overview'
+            ? <Overview records={records} onContinue={(id) => openStage(id)} />
+            : <StudyWorkspace
                 section={activeSection}
                 records={records}
                 notify={showNotice}

@@ -5,16 +5,22 @@ import {
   getRecommendedRoadmapStage,
   getRoadmapStageRecord,
   getLocalDate,
-  markRoadmapStageReviewed,
   parseBackupJson,
   previewBackupImport,
   roadmapStatuses,
-  setRoadmapStageStatus,
   type BackupFile,
   type BackupImportPreview,
 } from './studyData'
 import { parseStudySessionJson } from './studySession'
-import { exportData, importData, importStudySession, importTopicStudySession, loadSettings, saveRecord } from './studyDatabase'
+import {
+  exportData,
+  importData,
+  importStudySession,
+  importTopicStudySession,
+  loadSettings,
+  saveRoadmapStageStatus,
+  saveReviewedStage,
+} from './studyDatabase'
 import { learningRoadmap, roadmapStages } from './learningRoadmap'
 import { getStudyLesson } from './studyCurriculum'
 import { downloadBackupFile, downloadTextFile } from './backupDownload'
@@ -280,6 +286,7 @@ function SettingsPanel({
   const [settings, setSettings] = useState<AppSettings>()
   const backupFileRef = useRef<HTMLInputElement>(null)
   const sessionFileRef = useRef<HTMLInputElement>(null)
+  const sessionTextRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     let active = true
@@ -384,14 +391,20 @@ function SettingsPanel({
   async function importChatSession(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const file = sessionFileRef.current?.files?.[0]
-    if (!file) {
-      setFileError('Selecione o JSON de sessão recebido do ChatGPT.')
+    const text = sessionTextRef.current?.value?.trim()
+    let fileText = ''
+    // Use text if provided and no file, or use file if provided
+    if (text) {
+      fileText = text
+    } else if (file) {
+      fileText = await file.text()
+    } else {
+      setFileError('Selecione o JSON de sessão recebido do ChatGPT. ou cole o JSON abaixo.')
       return
     }
     setBusy(true)
     setFileError('')
     try {
-      const fileText = await file.text()
       const parsed: unknown = JSON.parse(fileText)
       if (parsed && typeof parsed === 'object' && 'schema_version' in parsed && parsed.schema_version === 2) {
         setTopicSessionPreview(parseTopicStudySessionJson(fileText))
@@ -415,6 +428,7 @@ function SettingsPanel({
       }
       notify(`Sessão ${result.sessionId} registrada; ${result.updatedStages} etapa(s) atualizada(s).`)
       if (sessionFileRef.current) sessionFileRef.current.value = ''
+      if (sessionTextRef.current) sessionTextRef.current.value = ''
     } catch (error) {
       setFileError(error instanceof Error ? error.message : 'Não foi possível processar a sessão.')
     } finally {
@@ -537,7 +551,11 @@ function SettingsPanel({
       <form className="import-form" onSubmit={(event) => void importChatSession(event)}>
         <label className="form-field" htmlFor="chat-session-file">
           <span>Arquivo JSON de sessão</span>
-          <input ref={sessionFileRef} id="chat-session-file" name="chatSessionFile" type="file" accept="application/json,.json" required />
+          <input ref={sessionFileRef} id="chat-session-file" name="chatSessionFile" type="file" accept="application/json,.json" />
+        </label>
+        <label className="form-field" htmlFor="chat-session-text">
+          <span>Colar JSON de sessão</span>
+          <textarea ref={sessionTextRef} id="chat-session-text" name="chatSessionText" rows={3} cols={50} disabled={busy} />
         </label>
         <button className="secondary-button" type="submit" disabled={busy}>{busy ? 'Validando…' : 'Validar e registrar sessão'}</button>
       </form>
@@ -701,7 +719,7 @@ export function StudyWorkspace({
   async function updateStatus(stage: RoadmapStage, status: RoadmapStatus) {
     setSavingStageId(stage.id)
     try {
-      await saveRecord(setRoadmapStageStatus(stage, getRoadmapStageRecord(records, stage.id), status))
+      await saveRoadmapStageStatus(stage, status)
     } catch (error) {
       notify(error instanceof Error ? `Não foi possível salvar o progresso: ${error.message}` : 'Não foi possível salvar o progresso.')
       setSavingStageId(undefined)
@@ -719,8 +737,15 @@ export function StudyWorkspace({
   }
 
   async function reviewStage(record: StudyRecord) {
+    if (!record.data.stageId) {
+      notify('Não foi possível registrar a revisão: o registro da etapa não tem identificador de etapa.')
+      return
+    }
     try {
-      await saveRecord(markRoadmapStageReviewed(record))
+      /* Gravação ao vivo: lê o registro corrente do banco dentro da transação e
+         aplica a revisão sobre ele, evitando perder atualizações de outras abas
+         ou gravar um snapshot React desatualizado (mesmo padrão de saveCatalogTopicStatus). */
+      await saveReviewedStage(record.data.stageId)
     } catch (error) {
       notify(error instanceof Error ? `Não foi possível registrar a revisão: ${error.message}` : 'Não foi possível registrar a revisão.')
       return
