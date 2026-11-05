@@ -16,7 +16,7 @@ import {
   type StudyRecord,
 } from './studyData'
 import { learningRoadmap } from './learningRoadmap'
-import { getCatalogTopicStatus } from './catalogProgress'
+import { getCatalogTopicStatus } from './studyData'
 import { findStudyTopic } from './studyCatalog'
 import { validateTopicStudySession, type TopicStudySession } from './studyTopicSession'
 import { validateStudySession } from './studySession'
@@ -116,12 +116,11 @@ export async function saveCatalogTopicStatus(
 ): Promise<void> {
   const database = await openDatabase()
   const transaction = database.transaction(recordsStore, 'readwrite')
-  const transactionComplete = completeTransaction(transaction)
-  transactionComplete.catch(() => undefined)
-
   const store = transaction.objectStore(recordsStore)
+  const transactionComplete = completeTransaction(transaction)
+
   const getRequest = store.get(`roadmap-topic:${topic.id}`)
-  const outcome: { error?: Error } = {}
+  const outcome = { error: undefined as Error | undefined }
 
   getRequest.onsuccess = () => {
     try {
@@ -308,42 +307,63 @@ export async function importData(backup: BackupFile, mode: 'replace' | 'merge'):
   const transaction = database.transaction([recordsStore, settingsStore], 'readwrite')
   const store = transaction.objectStore(recordsStore)
   const transactionComplete = completeTransaction(transaction)
-  let imported = 0
-  if (mode === 'replace') {
-    store.clear()
-    validatedBackup.records.forEach((record) => {
-      store.add(record)
-      imported += 1
-    })
-  } else {
-    const request = store.getAll()
-    request.onsuccess = () => {
-      const existingRecords = request.result as StudyRecord[]
-      const existingById = new Map(existingRecords.map((record) => [record.id, record]))
-      const conflicts = findBackupConflicts(validatedBackup.records, existingRecords)
-      for (const record of validatedBackup.records) {
-        if (conflicts.has(record.id)) {
-          // C5: não ignore silenciosamente um entrante mais recente. Substitua somente
-          // quando estiver estritamente mais atual; empates mantêm o registro local.
-          const existing = existingById.get(record.id)
-          const maisRecente = existing
-            ? (record.updatedAt ?? '') > (existing.updatedAt ?? '')
-            : false
-          if (!maisRecente) continue
-          store.put(record) // sobrescreve o registro local mais antigo
-        } else {
-          store.add(record)
-        }
+
+  const processImport = new Promise<BackupImportResult>((resolve) => {
+    let imported = 0
+    if (mode === 'replace') {
+      store.clear()
+      validatedBackup.records.forEach((record) => {
+        store.add(record)
         imported += 1
+      })
+    } else {
+      // modo merge: ler registros existentes e aplicar regras de conflito
+      const request = store.getAll()
+      request.onsuccess = () => {
+        const existingRecords = request.result as StudyRecord[]
+        const existingById = new Map(existingRecords.map((record) => [record.id, record]))
+        const conflicts = findBackupConflicts(validatedBackup.records, existingRecords)
+        for (const record of validatedBackup.records) {
+          if (conflicts.has(record.id)) {
+            // C5: não ignore silenciosamente um entrante mais recente. Substitua somente
+            // quando estiver estritamente mais atual; empates mantêm o registro local.
+            const existing = existingById.get(record.id)
+            const maisRecente = existing
+              ? (record.updatedAt ?? '') > (existing.updatedAt ?? '')
+              : false
+            if (!maisRecente) {
+              // pula este registro, mantém o local
+              continue
+            }
+            store.put(record) // sobrescreve o registro local mais antigo
+          } else {
+            store.add(record) // novo registro, nenhum conflito
+          }
+          imported += 1
+        }
       }
+      request.onerror = () => transaction.abort()
     }
-    request.onerror = () => transaction.abort()
-  }
+
+    // quando a transação finalizar, resolver com os resultados
+    transaction.oncomplete = () => {
+      resolve({ imported, ignored: validatedBackup.records.length - imported })
+    }
+    transaction.onabort = () => {
+      resolve({ imported: 0, ignored: validatedBackup.records.length })
+    }
+    transaction.onerror = () => {
+      resolve({ imported: 0, ignored: validatedBackup.records.length })
+    }
+  })
+
   if (mode === 'replace') {
     transaction.objectStore(settingsStore).put({ key: 'app', value: validatedBackup.settings })
   }
+
   await transactionComplete
-  return { imported, ignored: validatedBackup.records.length - imported }
+  const result = await processImport
+  return result
 }
 
 export interface StudySessionImportResult {
