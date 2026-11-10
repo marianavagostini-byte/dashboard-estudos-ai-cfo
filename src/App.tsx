@@ -1,20 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { StudyWorkspace, type WorkspaceSection } from './StudyWorkspace'
-import {
-  getLocalDate,
-  type StudyRecord,
-} from './studyData'
+import { getLocalDate, type StudyRecord } from './studyData'
 import { listRecords } from './studyDatabase'
-import {
-  calculateCatalogProgress,
-  calculateCurriculumProgress,
-  calculateParallelProgress,
-  countRecordedCatalogTopics,
-  getCatalogTotals,
-  getNextRecommendedTopic,
-  listCatalogTopics,
-  listCurriculumTopics,
-} from './catalogProgress'
+import { calculateCatalogProgress, listCurriculumTopics } from './catalogProgress'
+import { getCatalogTopicStatus } from './studyData'
 import './App.css'
 
 const iconShapes = {
@@ -97,20 +86,61 @@ function Overview({
   records: StudyRecord[]
   onContinue: (topicId: string) => void
 }) {
-  const mainProgress = calculateCatalogProgress(records, { curriculumOnly: true })
-  void calculateParallelProgress(records)
-  const areas = calculateCurriculumProgress(records)
+  // Build areas structure from curriculum topics grouped by subject
+  interface CurriculumArea {
+    id: string
+    subjectIds: string[]
+    percent: number
+    completed: number
+    total: number
+    inProgress: number
+    description: string
+  }
+  const curriculumTopics = listCurriculumTopics()
+  const subjectAreasMap = new Map<string, CurriculumArea>()
+  curriculumTopics.forEach((topic) => {
+    const subjectId = topic.subjectId
+    if (!subjectId) return
+    const existing = subjectAreasMap.get(subjectId)
+    const status = getCatalogTopicStatus(topic.topic.id, records)
+    if (existing) {
+      existing.total += 1
+      if (status === 'Concluído') existing.completed += 1
+      if (status === 'Em andamento') existing.inProgress += 1
+    } else {
+      subjectAreasMap.set(subjectId, {
+        id: subjectId,
+        subjectIds: [subjectId],
+        percent: 0,
+        completed: status === 'Concluído' ? 1 : 0,
+        total: 1,
+        inProgress: status === 'Em andamento' ? 1 : 0,
+        description: topic.subjectTitle || 'Matéria',
+      })
+    }
+  })
+  const areas: CurriculumArea[] = Array.from(subjectAreasMap.values())
+  areas.forEach((area) => {
+    area.percent = area.total > 0 ? Math.round((area.completed / area.total) * 100) : 0
+  })
+  // nextTopic: find first topic with 'Em andamento' or 'Treinando' status
+  const nextTopic = curriculumTopics.find(
+    (topic) =>
+      ['Em andamento', 'Disponível'].includes(
+        getCatalogTopicStatus(topic.topic.id, records),
+      ),
+  )
   const mainEntries = listCurriculumTopics()
-  void getCatalogTotals()
-  const nextTopic = getNextRecommendedTopic(records, { curriculumOnly: true })
-  const nextTopicInProgress = !!nextTopic && records.some(({ type, data }) =>
-    type === 'roadmapStage' && data.topicId === nextTopic.topic.id && data.status === 'Em andamento')
-  const trackedCount = countRecordedCatalogTopics(mainEntries, records)
+  const nextTopicInProgress = !!nextTopic && getCatalogTopicStatus(nextTopic.topic.id, records) === 'Em andamento'
+  const trackedCount = curriculumTopics.filter(
+    (entry) => entry.type === 'topic' && entry.topic?.id,
+  ).length
   const legacyStageCount = records.filter(({ type, data }) => type === 'roadmapStage' && !data.topicId).length
   const sessionCount = records.filter(({ type }) => type === 'session').length
-  const dsaEntries = listCatalogTopics({ parallelOnly: true })
-  const proposedDsaCount = dsaEntries.filter(({ topic }) => topic.origin === 'proposta').length
+  const dsaEntries = curriculumTopics.filter((entry) => entry.phaseParallel === true)
+  const proposedDsaCount = dsaEntries.filter((entry) => entry.topic?.origin === 'proposta').length
   const inProgressCount = areas.reduce((sum, area) => sum + area.inProgress, 0)
+  const mainProgress = calculateCatalogProgress(records, { curriculumOnly: true })
   const notStartedCount = Math.max(mainProgress.total - mainProgress.completed - inProgressCount, 0)
   const completedAreas = areas.filter(({ completed, total }) => total > 0 && completed >= total).length
   const currentAreaId = nextTopic
@@ -164,11 +194,11 @@ function Overview({
                     type="button"
                     disabled={!firstEntry}
                     onClick={() => firstEntry && onContinue(firstEntry.topic.id)}
-                    title={`${area.title}: ${area.percent}% concluído (${area.completed}/${area.total}) · ${area.inProgress} em andamento. ${area.description}`}
-                    aria-label={`${index + 1}. ${area.title}: ${area.percent}% concluído, ${area.completed} de ${area.total} tópicos`}
+                    title={`${area.description}: ${area.percent}% concluído (${area.completed}/${area.total}) · ${area.inProgress} em andamento. ${area.description}`}
+                    aria-label={`${index + 1}. ${area.description}: ${area.percent}% concluído, ${area.completed} de ${area.total} tópicos`}
                   >
                     <span className="timeline-marker" aria-hidden="true">{state === 'done' ? '✓' : index + 1}</span>
-                    <span className="timeline-title">{area.title}</span>
+                    <span className="timeline-title">{area.description}</span>
                     <span className="timeline-meta">{area.completed}/{area.total} · {area.percent}%</span>
                     <span className="timeline-track" aria-hidden="true"><span style={{ width: `${area.percent}%` }} /></span>
                   </button>
@@ -316,7 +346,8 @@ function App() {
                 refresh={refresh}
                 selectedStageId={selectedStageId}
                 onOpenStage={openStage}
-              />}
+              />
+}
       </main>
     </div>
   )
