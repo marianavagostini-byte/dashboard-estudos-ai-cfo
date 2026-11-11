@@ -255,6 +255,19 @@ export function getCatalogTopicRecord(records: readonly StudyRecord[], topicId: 
   return records.find(({ type, data }) => type === 'roadmapStage' && data.topicId === topicId)
 }
 
+type CatalogTopicStatusGuard = (value: unknown) => value is CatalogTopicStatus
+
+const isCatalogTopicStatus: CatalogTopicStatusGuard = (value): value is CatalogTopicStatus => {
+  return typeof value === 'string' && catalogTopicStatusValues.includes(value as any)
+}
+
+export function getCatalogTopicStatus(topicId: string, records: readonly StudyRecord[]): CatalogTopicStatus {
+  const record = getCatalogTopicRecord(records, topicId)
+  const status = record?.data.status
+  if (isCatalogTopicStatus(status)) return status
+  return 'Bloqueado'
+}
+
 export function setCatalogTopicStatus(
   topic: { id: string; title: string; phaseId: string; subjectId: string },
   existing: StudyRecord | undefined,
