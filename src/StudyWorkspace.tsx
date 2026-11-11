@@ -559,6 +559,7 @@ function SettingsPanel({
         </label>
         <button className="secondary-button" type="submit" disabled={busy}>{busy ? 'Validando…' : 'Validar e registrar sessão'}</button>
       </form>
+      {fileError && <p className="form-error" role="alert">{fileError}</p>}
       {topicSessionPreview && (
         <section className="session-import-preview" aria-labelledby="topic-session-preview-title">
           <div className="section-heading"><div><span className="eyebrow">Prévia · sessão v2</span><h3 id="topic-session-preview-title">Revisar alterações propostas</h3></div></div>
