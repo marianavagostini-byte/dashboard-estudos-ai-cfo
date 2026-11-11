@@ -2,7 +2,13 @@ import { useCallback, useEffect, useState } from 'react'
 import { StudyWorkspace, type WorkspaceSection } from './StudyWorkspace'
 import { getLocalDate, type StudyRecord } from './studyData'
 import { listRecords } from './studyDatabase'
-import { calculateCatalogProgress, listCurriculumTopics } from './catalogProgress'
+import {
+  calculateCatalogProgress,
+  listCurriculumTopics,
+  countRecordedCatalogTopics,
+  listCatalogTopics,
+  getNextRecommendedTopic,
+} from './catalogProgress'
 import { getCatalogTopicStatus } from './studyData'
 import './App.css'
 
@@ -124,20 +130,13 @@ function Overview({
     area.percent = area.total > 0 ? Math.round((area.completed / area.total) * 100) : 0
   })
   // nextTopic: find first topic with 'Em andamento' or 'Treinando' status
-  const nextTopic = curriculumTopics.find(
-    (topic) =>
-      ['Em andamento', 'Disponível'].includes(
-        getCatalogTopicStatus(topic.topic.id, records),
-      ),
-  )
+  const nextTopic = getNextRecommendedTopic(records, { curriculumOnly: true })
   const mainEntries = listCurriculumTopics()
   const nextTopicInProgress = !!nextTopic && getCatalogTopicStatus(nextTopic.topic.id, records) === 'Em andamento'
-  const trackedCount = curriculumTopics.filter(
-    (entry) => entry.type === 'topic' && entry.topic?.id,
-  ).length
+  const trackedCount = countRecordedCatalogTopics(curriculumTopics, records)
   const legacyStageCount = records.filter(({ type, data }) => type === 'roadmapStage' && !data.topicId).length
   const sessionCount = records.filter(({ type }) => type === 'session').length
-  const dsaEntries = curriculumTopics.filter((entry) => entry.phaseParallel === true)
+  const dsaEntries = listCatalogTopics({ parallelOnly: true })
   const proposedDsaCount = dsaEntries.filter((entry) => entry.topic?.origin === 'proposta').length
   const inProgressCount = areas.reduce((sum, area) => sum + area.inProgress, 0)
   const mainProgress = calculateCatalogProgress(records, { curriculumOnly: true })
