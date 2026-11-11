@@ -41,7 +41,7 @@ const studySessionSource = await readFile(new URL('../src/studySession.ts', impo
 const { outputText: studySessionOutput } = ts.transpileModule(
   studySessionSource
     .replace("from './learningRoadmap'", `from '${roadmapUrl}'`)
-    .replace("from './studyData'", `from '${moduleUrl}'`),
+    .replaceAll("from './studyData'", `from '${moduleUrl}'`),
   {
     compilerOptions: {
       module: ts.ModuleKind.ESNext,
@@ -106,7 +106,7 @@ const { legacyProgressMappings, simulateProgressMigration } = await import(migra
 const { validateTopicStudySession, parseTopicStudySessionJson } = await import(topicSessionUrl)
 const { outputText: databaseOutput } = ts.transpileModule(
   databaseSource
-    .replace("from './studyData'", `from '${moduleUrl}'`)
+    .replaceAll("from './studyData'", `from '${moduleUrl}'`)
     .replace("from './learningRoadmap'", `from '${roadmapUrl}'`)
     .replace("from './studySession'", `from '${studySessionUrl}'`)
     .replace("from './catalogProgress'", `from '${catalogProgressUrl}'`)
